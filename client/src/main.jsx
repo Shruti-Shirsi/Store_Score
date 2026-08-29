@@ -35,7 +35,20 @@ const fields = { name: fullName, email: "", address: "", password: "" };
 const today = new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(new Date());
 function storedAvatar(id) { return localStorage.getItem(`ss_avatar_${id}`); }
 function Avatar({ user, className = "avatar" }) { const image = storedAvatar(user.id); return <div className={className}>{image ? <img src={image} alt="" /> : user.name[0]}</div>; }
-function Highlight({ value, query }) { const text = String(value ?? ""); if (!query.trim()) return text; const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig")); return parts.map((part, i) => part.toLowerCase() === query.toLowerCase() ? <mark key={i}>{part}</mark> : part); }
+function Highlight({ value, query }) {
+  const text = String(value ?? "");
+  const q = String(query ?? "").trim();
+  if (!q) return text;
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "ig"));
+  return parts.map((part, i) =>
+    part && part.toLowerCase() === q.toLowerCase() ? (
+      <mark key={`${part}-${i}`}>{part}</mark>
+    ) : (
+      part
+    ),
+  );
+}
 function Auth({ onAuth }) {
   const [login, setLogin] = useState(true),
     [form, setForm] = useState({
@@ -271,6 +284,7 @@ function Shell({ session, logout }) {
             Profile & password
           </Nav>
           {isAdmin && <Nav icon={<Users />} active={tab === "past-users"} onClick={() => setTab("past-users")}>Past users</Nav>}
+          {isAdmin && <Nav icon={<Store />} active={tab === "past-stores"} onClick={() => setTab("past-stores")}>Past stores</Nav>}
         </nav>
         <div className="profile">
           <Avatar user={session.user} />
@@ -331,6 +345,7 @@ function Shell({ session, logout }) {
           <UsersPage token={session.token} notify={setNotice} />
         )}{" "}
         {isAdmin && tab === "past-users" && <PastUsersPage token={session.token} />}{" "}
+        {isAdmin && tab === "past-stores" && <PastStoresPage token={session.token} />}{" "}
         {tab === "stores" && (
           <StoresPage
             token={session.token}
@@ -601,6 +616,16 @@ function UsersPage({ token, notify }) {
       setError(`Could not load users: ${e.message}`);
     }
   };
+  async function deleteUser(id) {
+    if (!window.confirm("Delete this user account?")) return;
+    try {
+      await request(`/admin/users/${id}`, "DELETE", null, token);
+      await load();
+      notify("User moved to archive.");
+    } catch (e) {
+      notify(e.message);
+    }
+  }
   useEffect(() => {
     load();
   }, [search, role, sort]);
@@ -658,6 +683,7 @@ function UsersPage({ token, notify }) {
                 setSort={setSort}
               />
               <SortHead label="Role" col="role" sort={sort} setSort={setSort} />
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -670,11 +696,14 @@ function UsersPage({ token, notify }) {
                 <td>
                   <span className="badge">{u.role}</span>
                 </td>
+                <td>
+                  <button className="danger-action" onClick={() => deleteUser(u.id)}>Delete</button>
+                </td>
               </tr>
             ))}
             {!users.length && (
               <tr>
-                <td colSpan="4" className="empty">
+                <td colSpan="5" className="empty">
                   No users match your filters.
                 </td>
               </tr>
@@ -761,12 +790,49 @@ function PastUsersPage({ token }) {
   useEffect(() => { request("/admin/past-users", "GET", null, token).then(setUsers).catch(() => setUsers([])); }, [token]);
   return <><Header eyebrow="ARCHIVE" title="Past users" text="Accounts deleted by normal users are retained here for administrators." /><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Deleted</th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><span className="person-cell"><Avatar user={user} /><b>{user.name}</b></span></td><td>{user.email}</td><td>{user.role}</td><td>{new Date(user.deleted_at).toLocaleDateString()}</td></tr>)}{!users.length && <tr><td colSpan="4" className="empty">No past users.</td></tr>}</tbody></table></div></>;
 }
+function PastStoresPage({ token }) {
+  const [stores, setStores] = useState([]);
+  useEffect(() => {
+    request("/admin/past-stores", "GET", null, token)
+      .then(setStores)
+      .catch(() => setStores([]));
+  }, [token]);
+  return (
+    <>
+      <Header eyebrow="ARCHIVE" title="Past stores" text="Stores removed from the active directory are retained here for administrators." />
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>Email</th>
+              <th>Address</th>
+              <th>Deleted</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stores.map((store) => (
+              <tr key={store.id}>
+                <td><span className="person-cell"><div className="avatar store-avatar">{store.name[0]}</div><b>{store.name}</b></span></td>
+                <td>{store.email}</td>
+                <td>{store.address}</td>
+                <td>{new Date(store.deleted_at).toLocaleDateString()}</td>
+              </tr>
+            ))}
+            {!stores.length && <tr><td colSpan="4" className="empty">No past stores.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
 function StoresPage({ token, role, notify, setOwnerUnread, setOwnerNotificationCount, dashboard = false }) {
   const [stores, setStores] = useState([]),
     [search, setSearch] = useState(""),
     [sort, setSort] = useState({ by: "name", dir: "asc" }),
     [show, setShow] = useState(false),
     [owner, setOwner] = useState(null),
+    [editingStore, setEditingStore] = useState(null),
     [error, setError] = useState("");
         const admin = role === "ADMIN";
   const load = async () => {
@@ -821,6 +887,18 @@ function StoresPage({ token, role, notify, setOwnerUnread, setOwnerNotificationC
             setShow(false);
             load();
             notify("Store created successfully.");
+          }}
+        />
+      )}
+      {editingStore && (
+        <StoreOwnerModal
+          token={token}
+          store={editingStore}
+          close={() => setEditingStore(null)}
+          done={() => {
+            setEditingStore(null);
+            load();
+            notify("Store owner updated.");
           }}
         />
       )}
@@ -892,7 +970,16 @@ function StoresPage({ token, role, notify, setOwnerUnread, setOwnerNotificationC
                     />
                   </td>
                 )}
-                {admin && <td><button className="danger-action" onClick={() => deleteStore(s.id)}>Delete</button></td>}
+                {admin && (
+                  <td>
+                    {!s.owner_id && (
+                      <button className="secondary" onClick={() => setEditingStore(s)}>
+                        Update owner
+                      </button>
+                    )}
+                    <button className="danger-action" onClick={() => deleteStore(s.id)}>Delete</button>
+                  </td>
+                )}
               </tr>
             ))}
             {!stores.length && (
@@ -1015,6 +1102,44 @@ function StoreModal({ token, close, done }) {
             Cancel
           </button>
           <button className="primary">Create store</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+function StoreOwnerModal({ token, store, close, done }) {
+  const [ownerId, setOwnerId] = useState(store?.owner_id || ""),
+    [owners, setOwners] = useState([]),
+    [error, setError] = useState("");
+  useEffect(() => {
+    request("/admin/users?role=OWNER", "GET", null, token).then(setOwners);
+  }, [token]);
+  return (
+    <Modal title={store?.owner_id ? "Update store owner" : "Assign store owner"} close={close}>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            await request(`/admin/stores/${store.id}/owner`, "PATCH", { ownerId: ownerId || null }, token);
+            done();
+          } catch (e) {
+            setError(e.message);
+          }
+        }}
+      >
+        <label>
+          Store owner
+          <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
+            <option value="">Assign later</option>
+            {owners.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+        </label>
+        {error && <div className="error">{error}</div>}
+        <div className="modal-actions">
+          <button type="button" className="secondary" onClick={close}>Cancel</button>
+          <button className="primary">Save owner</button>
         </div>
       </form>
     </Modal>

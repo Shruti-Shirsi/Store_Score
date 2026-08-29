@@ -18,9 +18,11 @@ CREATE TABLE stores (
   email VARCHAR(255) NOT NULL UNIQUE,
   address VARCHAR(400) NOT NULL,
   owner_id INT UNSIGNED NULL UNIQUE,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_store_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_stores_name (name)
+  INDEX idx_stores_name (name),
+  INDEX idx_stores_deleted (deleted_at)
 );
 
 CREATE TABLE ratings (

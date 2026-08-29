@@ -612,65 +612,6 @@ function UsersPage({ token, notify }) {
         text="Search, filter, and inspect everyone on the platform."
         action={<button className="primary compact" onClick={() => setShow(true)}><Plus /> Add user</button>}
       />
-            {error && <div className="error">{error}</div>}
-            <div className="toolbar">
-              <div className="search">
-                <Search />
-                <input
-                  placeholder="Search name, email, address…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <select value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="">All roles</option>
-                <option value="USER">Normal user</option>
-                <option value="ADMIN">Administrator</option>
-                <option value="OWNER">Store owner</option>
-              </select>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <SortHead label="Name" col="name" sort={sort} setSort={setSort} />
-                    <SortHead
-                      label="Email"
-                      col="email"
-                      sort={sort}
-                      setSort={setSort}
-                    />
-                    <SortHead
-                      label="Address"
-                      col="address"
-                      sort={sort}
-                      setSort={setSort}
-                    />
-                    <SortHead label="Role" col="role" sort={sort} setSort={setSort} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td>
-                        <span className="person-cell"><Avatar user={u} /><b><Highlight value={u.name} query={search} /></b></span></td>
-                      <td><Highlight value={u.email} query={search} /></td>
-                      <td><Highlight value={u.address} query={search} /></td>
-                      <td>
-                        <span className="badge">{u.role}</span>
-                      </td>
-                    </tr>
-                  ))}
-                  {!users.length && (
-                    <tr>
-                      <td colSpan="4" className="empty">
-                        No users match your filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
       {show && (
         <UserModal
           token={token}
@@ -682,6 +623,65 @@ function UsersPage({ token, notify }) {
           }}
         />
       )}
+      {error && <div className="error">{error}</div>}
+      <div className="toolbar">
+        <div className="search">
+          <Search />
+          <input
+            placeholder="Search name, email, address…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <select value={role} onChange={(e) => setRole(e.target.value)}>
+          <option value="">All roles</option>
+          <option value="USER">Normal user</option>
+          <option value="ADMIN">Administrator</option>
+          <option value="OWNER">Store owner</option>
+        </select>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <SortHead label="Name" col="name" sort={sort} setSort={setSort} />
+              <SortHead
+                label="Email"
+                col="email"
+                sort={sort}
+                setSort={setSort}
+              />
+              <SortHead
+                label="Address"
+                col="address"
+                sort={sort}
+                setSort={setSort}
+              />
+              <SortHead label="Role" col="role" sort={sort} setSort={setSort} />
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id}>
+                <td>
+                  <span className="person-cell"><Avatar user={u} /><b><Highlight value={u.name} query={search} /></b></span></td>
+                <td><Highlight value={u.email} query={search} /></td>
+                <td><Highlight value={u.address} query={search} /></td>
+                <td>
+                  <span className="badge">{u.role}</span>
+                </td>
+              </tr>
+            ))}
+            {!users.length && (
+              <tr>
+                <td colSpan="4" className="empty">
+                  No users match your filters.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
@@ -746,7 +746,12 @@ function UserModal({ token, close, done }) {
           </select>
         </label>
         {error && <div className="error">{error}</div>}
-        <button className="primary">Create user</button>
+        <div className="modal-actions">
+          <button type="button" className="secondary" onClick={close}>
+            Cancel
+          </button>
+          <button className="primary">Create user</button>
+        </div>
       </form>
     </Modal>
   );
@@ -808,99 +813,99 @@ function StoresPage({ token, role, notify, setOwnerUnread, setOwnerNotificationC
           )
         }
       />
-            {error && <div className="error">{error}</div>}
-            <div className="toolbar">
-              <div className="search">
-                <Search />
-                <input
-                  placeholder="Search store name or address…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <SortHead
-                      label="Store"
-                      col="name"
-                      sort={sort}
-                      setSort={setSort}
-                    />
-                    {admin && (
-                      <SortHead
-                        label="Email"
-                        col="email"
-                        sort={sort}
-                        setSort={setSort}
-                      />
-                    )}
-                    <SortHead
-                      label="Address"
-                      col="address"
-                      sort={sort}
-                      setSort={setSort}
-                    />
-                    <SortHead
-                      label="Overall rating"
-                      col="average_rating"
-                      sort={sort}
-                      setSort={setSort}
-                    />
-                    {role === "USER" && <th>Your rating</th>}
-                    {admin && <th>Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {stores.map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <span className="person-cell"><div className="avatar store-avatar">{s.name[0]}</div><b><Highlight value={s.name} query={search} /></b></span></td>
-                      {admin && <td><Highlight value={s.email} query={search} /></td>}
-                      <td><Highlight value={s.address} query={search} /></td>
-                      <td>
-                        <Rating value={s.average_rating} />
-                        <small> {s.rating_count} ratings</small>
-                      </td>
-                      {role === "USER" && (
-                        <td>
-                          <RatingEditor
-                            store={s}
-                            token={token}
-                            done={() => {
-                              load();
-                              notify("Your rating has been saved.");
-                            }}
-                          />
-                        </td>
-                      )}
-                      {admin && <td><button className="danger-action" onClick={() => deleteStore(s.id)}>Delete</button></td>}
-                    </tr>
-                  ))}
-                  {!stores.length && (
-                    <tr>
-                      <td colSpan="5" className="empty">
-                        No stores match your search.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {show && (
-              <StoreModal
-                token={token}
-                close={() => setShow(false)}
-                done={() => {
-                  setShow(false);
-                  load();
-                  notify("Store created successfully.");
-                }}
+      {show && (
+        <StoreModal
+          token={token}
+          close={() => setShow(false)}
+          done={() => {
+            setShow(false);
+            load();
+            notify("Store created successfully.");
+          }}
+        />
+      )}
+      {error && <div className="error">{error}</div>}
+      <div className="toolbar">
+        <div className="search">
+          <Search />
+          <input
+            placeholder="Search store name or address…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <SortHead
+                label="Store"
+                col="name"
+                sort={sort}
+                setSort={setSort}
               />
+              {admin && (
+                <SortHead
+                  label="Email"
+                  col="email"
+                  sort={sort}
+                  setSort={setSort}
+                />
+              )}
+              <SortHead
+                label="Address"
+                col="address"
+                sort={sort}
+                setSort={setSort}
+              />
+              <SortHead
+                label="Overall rating"
+                col="average_rating"
+                sort={sort}
+                setSort={setSort}
+              />
+              {role === "USER" && <th>Your rating</th>}
+              {admin && <th>Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {stores.map((s) => (
+              <tr key={s.id}>
+                <td>
+                  <span className="person-cell"><div className="avatar store-avatar">{s.name[0]}</div><b><Highlight value={s.name} query={search} /></b></span></td>
+                {admin && <td><Highlight value={s.email} query={search} /></td>}
+                <td><Highlight value={s.address} query={search} /></td>
+                <td>
+                  <Rating value={s.average_rating} />
+                  <small> {s.rating_count} ratings</small>
+                </td>
+                {role === "USER" && (
+                  <td>
+                    <RatingEditor
+                      store={s}
+                      token={token}
+                      done={() => {
+                        load();
+                        notify("Your rating has been saved.");
+                      }}
+                    />
+                  </td>
+                )}
+                {admin && <td><button className="danger-action" onClick={() => deleteStore(s.id)}>Delete</button></td>}
+              </tr>
+            ))}
+            {!stores.length && (
+              <tr>
+                <td colSpan="5" className="empty">
+                  No stores match your search.
+                </td>
+              </tr>
             )}
-          </>
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 function Rating({ value }) {
@@ -1005,7 +1010,12 @@ function StoreModal({ token, close, done }) {
           </select>
         </label>
         {error && <div className="error">{error}</div>}
-        <button className="primary">Create store</button>
+        <div className="modal-actions">
+          <button type="button" className="secondary" onClick={close}>
+            Cancel
+          </button>
+          <button className="primary">Create store</button>
+        </div>
       </form>
     </Modal>
   );
@@ -1168,10 +1178,23 @@ function PasswordPage({ token, notify }) {
   );
 }
 function Modal({ title, close, children }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [close]);
+
   return (
-    <div className="modal-bg">
-      <div className="modal">
-        <button className="close" onClick={close}>
+    <div className="modal-bg" onClick={close}>
+      <div
+        className="modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <button type="button" className="close" onClick={close} aria-label="Close dialog">
           ×
         </button>
         <h2>{title}</h2>

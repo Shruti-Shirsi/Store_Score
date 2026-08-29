@@ -185,9 +185,13 @@ function App() {
   return <Shell session={session} logout={logout} />;
 }
 function Shell({ session, logout }) {
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState(() =>
+    session.user.role === "USER" ? "stores" : "dashboard",
+  );
   const [notice, setNotice] = useState("");
   const [ownerUnread, setOwnerUnread] = useState(false);
+  const [ownerNotificationCount, setOwnerNotificationCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(""), 4200); return () => clearTimeout(timer); }, [notice]);
   const isAdmin = session.user.role === "ADMIN",
     isOwner = session.user.role === "OWNER";
@@ -196,6 +200,7 @@ function Shell({ session, logout }) {
     : isOwner
       ? "Store owner"
       : "Normal user";
+  const hasNewRatings = ownerNotificationCount > 0;
   return (
     <div className="app">
       <aside>
@@ -282,8 +287,27 @@ function Shell({ session, logout }) {
       <main className="content">
         <div className="topbar">
           <span className="crumb">Home / {tab}</span>
-          <div>
-            <span className={`notification ${ownerUnread ? "has-notification" : ""}`} title={ownerUnread ? "New store rating" : "No new notifications"}>●</span>
+          <div className="topbar-user">
+            {isOwner && (
+              <>
+                <button
+                  type="button"
+                  className={`notification-badge ${hasNewRatings ? "has-notification" : ""}`}
+                  onClick={() => setShowNotifications((value) => !value)}
+                  title={hasNewRatings ? `${ownerNotificationCount} new rating${ownerNotificationCount === 1 ? "" : "s"} received` : "No new notifications"}
+                  aria-label={hasNewRatings ? `${ownerNotificationCount} new ratings received` : "No new notifications"}
+                >
+                  <span className="notification-dot">●</span>
+                  {hasNewRatings && <span className="notification-count">{ownerNotificationCount}</span>}
+                </button>
+                {showNotifications && hasNewRatings && (
+                  <div className="notification-dialog">
+                    <strong>{ownerNotificationCount}</strong>
+                    <span>new rating{ownerNotificationCount === 1 ? "" : "s"} received</span>
+                  </div>
+                )}
+              </>
+            )}
             <b>{session.user.name}</b>
             <small>{roleLabel}</small>
             <time>{today}</time>
@@ -299,6 +323,7 @@ function Shell({ session, logout }) {
             role={session.user.role}
             notify={setNotice}
             setOwnerUnread={setOwnerUnread}
+            setOwnerNotificationCount={setOwnerNotificationCount}
             dashboard
           />
         )}{" "}
@@ -312,6 +337,7 @@ function Shell({ session, logout }) {
             role={session.user.role}
             notify={setNotice}
             setOwnerUnread={setOwnerUnread}
+            setOwnerNotificationCount={setOwnerNotificationCount}
           />
         )}{" "}
         {tab === "password" && (
@@ -730,7 +756,7 @@ function PastUsersPage({ token }) {
   useEffect(() => { request("/admin/past-users", "GET", null, token).then(setUsers).catch(() => setUsers([])); }, [token]);
   return <><Header eyebrow="ARCHIVE" title="Past users" text="Accounts deleted by normal users are retained here for administrators." /><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Deleted</th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><span className="person-cell"><Avatar user={user} /><b>{user.name}</b></span></td><td>{user.email}</td><td>{user.role}</td><td>{new Date(user.deleted_at).toLocaleDateString()}</td></tr>)}{!users.length && <tr><td colSpan="4" className="empty">No past users.</td></tr>}</tbody></table></div></>;
 }
-function StoresPage({ token, role, notify, setOwnerUnread, dashboard = false }) {
+function StoresPage({ token, role, notify, setOwnerUnread, setOwnerNotificationCount, dashboard = false }) {
   const [stores, setStores] = useState([]),
     [search, setSearch] = useState(""),
     [sort, setSort] = useState({ by: "name", dir: "asc" }),
@@ -763,7 +789,7 @@ function StoresPage({ token, role, notify, setOwnerUnread, dashboard = false }) 
     }
     load();
   }, [search, sort, role]);
-  if (role === "OWNER") return <OwnerPage owner={owner} setOwnerUnread={setOwnerUnread} dashboard={dashboard} />;
+  if (role === "OWNER") return <OwnerPage owner={owner} setOwnerUnread={setOwnerUnread} setOwnerNotificationCount={setOwnerNotificationCount} dashboard={dashboard} />;
   return (
     <>
       <Header
@@ -984,7 +1010,7 @@ function StoreModal({ token, close, done }) {
     </Modal>
   );
 }
-function OwnerPage({ owner, setOwnerUnread, dashboard }) {
+function OwnerPage({ owner, setOwnerUnread, setOwnerNotificationCount, dashboard }) {
   if (!owner) return <div className="loading">Loading dashboard…</div>;
   if (!owner.summary)
     return (
@@ -997,7 +1023,13 @@ function OwnerPage({ owner, setOwnerUnread, dashboard }) {
       </>
     );
     const { summary, raters } = owner;
-    useEffect(() => { const key = `ss_owner_ratings_${summary.id}`; const seen = Number(localStorage.getItem(key) || 0); setOwnerUnread?.(Number(summary.rating_count) > seen); }, [summary.id, summary.rating_count, setOwnerUnread]);
+    useEffect(() => {
+      const key = `ss_owner_ratings_${summary.id}`;
+      const seen = Number(localStorage.getItem(key) || 0);
+      const newCount = Number(summary.rating_count) > seen ? Number(summary.rating_count) - seen : 0;
+      setOwnerUnread?.(newCount > 0);
+      setOwnerNotificationCount?.(newCount);
+    }, [summary.id, summary.rating_count, setOwnerUnread, setOwnerNotificationCount]);
   return (
     <>
       <Header
@@ -1068,7 +1100,7 @@ function OwnerPage({ owner, setOwnerUnread, dashboard }) {
           <Metric label="Average rating" value={summary.average_rating || "—"} />
           <Metric label="Highest rating" value={summary.highest_rating || "—"} />
           <Metric label="Lowest rating" value={summary.lowest_rating || "—"} />
-          <button className="primary compact" onClick={() => { localStorage.setItem(`ss_owner_ratings_${summary.id}`, summary.rating_count); setOwnerUnread?.(false); }}>Mark notifications read</button>
+          <button className="primary compact" onClick={() => { localStorage.setItem(`ss_owner_ratings_${summary.id}`, summary.rating_count); setOwnerUnread?.(false); setOwnerNotificationCount?.(0); }}>Mark notifications read</button>
         </aside>
       </section>}
       {dashboard && <OwnerCharts raters={raters} />}
